@@ -25,8 +25,6 @@ import Config from "./config";
 import database from "./middleware/database";
 import corsSelector from "./middleware/cors-selector";
 
-
-
 const app = express();
 
 // Utility packages (detailed in the readme)
