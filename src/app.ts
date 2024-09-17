@@ -16,6 +16,7 @@ import shopRouter from "./services/shop/shop-router";
 import staffRouter from "./services/staff/staff-router";
 import versionRouter from "./services/version/version-router";
 import userRouter from "./services/user/user-router";
+import hackwebtokenRouter from "./services/hackwebtoken/hackwebtoken-router";
 
 // import { InitializeConfigReader } from "./middleware/config-reader";
 import { ErrorHandler } from "./middleware/error-handler";
@@ -54,6 +55,7 @@ app.use("/shop/", database, shopRouter);
 app.use("/staff/", database, staffRouter);
 app.use("/version/", versionRouter);
 app.use("/user/", database, userRouter);
+app.use("/hackwebtoken/", hackwebtokenRouter);
 
 // Ensure that API is running
 app.get("/", (_: Request, res: Response) => {
