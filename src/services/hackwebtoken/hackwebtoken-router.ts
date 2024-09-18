@@ -4,14 +4,11 @@ import { StatusCode } from "status-code-enum";
 import cors from "cors";
 import { NextFunction } from "express-serve-static-core";
 
-// TODO: fix apidocs warnings -- not sure how to fix that?????
-// TODO: test suite
-// TODO: if time permits -- better the encoding
-
 const encodingRouter = Router();
 encodingRouter.use(cors());
-// to avoid magic numbers
+
 const SECRET_KEY_LENGTH = 32;
+const UNIQUE_ID_LENGTH = 16;
 const BASE64_PADDING_DIVISOR = 4;
 const SECRET_KEY = crypto.randomBytes(SECRET_KEY_LENGTH).toString("base64");
 
@@ -39,10 +36,10 @@ const createSignature = (header: string, payload: string, secret: string): strin
  * @apiDescription Encode user data into a JWT token.
  *
  * @apiHeader {String} Content-Type application/json
- * @apiParam {String} user The username of the user.
- * @apiParam {Object} data The data to be encoded in the token.
- * @apiParam (data) {String} role The role of the user.
- * @apiParam (data) {Number} access_level The access level of the user.
+ * @apiBody {String} user The username of the user.
+ * @apiBody {Object} data The data to be encoded in the token.
+ * @apiBody (data) {String} role The role of the user.
+ * @apiBody (data) {Number} access_level The access level of the user.
  *
  * @apiSuccess {String} token The generated JWT token.
  * @apiSuccess {String} context Some extra data.
@@ -59,7 +56,7 @@ encodingRouter.post("/encode/", async (req: Request, res: Response, next: NextFu
     }
 
     try {
-        const uniqueId = crypto.randomBytes(16).toString("hex");
+        const uniqueId = crypto.randomBytes(UNIQUE_ID_LENGTH).toString("hex");
         const timestamp = new Date().toISOString();
 
         const header = JSON.stringify({ alg: "HS256", typ: "JWT" });
@@ -69,8 +66,12 @@ encodingRouter.post("/encode/", async (req: Request, res: Response, next: NextFu
         const signature = createSignature(encodedHeader, encodedPayload, SECRET_KEY);
 
         const token = `${encodedHeader}.${encodedPayload}.${signature}`;
-        const context = "some extra data"; // doc said this
-        return res.status(StatusCode.SuccessOK).send({ token, context: context || {} });
+        const context = {
+            uniqueId,
+            timestamp,
+        };
+
+        return res.status(StatusCode.SuccessOK).send({ token, context });
     } catch (err) {
         return next(err);
     }
@@ -83,7 +84,7 @@ encodingRouter.post("/encode/", async (req: Request, res: Response, next: NextFu
  * @apiDescription Decode a JWT token and retrieve the encoded user data.
  *
  * @apiHeader {String} Content-Type application/json
- * @apiParam {String} token The JWT token to decode.
+ * @apiBody {String} token The JWT token to decode.
  *
  * @apiSuccess {String} user The username of the user.
  * @apiSuccess {Object} data The decoded data from the token.
@@ -104,13 +105,13 @@ encodingRouter.post("/decode/", async (req: Request, res: Response) => {
 
     try {
         const [encodedHeader, encodedPayload, receivedSignature] = token.split(".");
-        const expectedSignature = createSignature(encodedHeader, encodedPayload, SECRET_KEY);
+        const expectedSignature = createSignature(encodedHeader as string, encodedPayload as string, SECRET_KEY as string);
 
         if (receivedSignature !== expectedSignature) {
             return res.status(StatusCode.ClientErrorUnauthorized).json({ error: "Invalid token" });
         }
 
-        const payload = JSON.parse(base64UrlDecode(encodedPayload).toString());
+        const payload = JSON.parse(base64UrlDecode(encodedPayload as string).toString());
         return res.status(StatusCode.SuccessOK).send({ user: payload.user, data: payload.data });
     } catch (err) {
         return res.status(StatusCode.ClientErrorUnauthorized).json({ error: "Invalid token" });
