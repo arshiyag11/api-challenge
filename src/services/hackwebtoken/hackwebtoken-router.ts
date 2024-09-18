@@ -4,8 +4,13 @@ import { StatusCode } from "status-code-enum";
 import cors from "cors";
 import { NextFunction } from "express-serve-static-core";
 
+// TODO: fix apidocs warnings -- not sure how to fix that?????
+// TODO: test suite
+// TODO: if time permits -- better the encoding
+
 const encodingRouter = Router();
 encodingRouter.use(cors());
+// to avoid magic numbers
 const SECRET_KEY_LENGTH = 32;
 const BASE64_PADDING_DIVISOR = 4;
 const SECRET_KEY = crypto.randomBytes(SECRET_KEY_LENGTH).toString("base64");
@@ -28,17 +33,22 @@ const createSignature = (header: string, payload: string, secret: string): strin
 };
 
 /**
- * @api {post} /hackwebtoken/encode/ POST /hackwebtoken/encode/
+ * @api {post} /hackwebtoken/encode/ Encode JWT Token
+ * @apiName EncodeJWT
  * @apiGroup HackWebToken
- * @apiDescription Implement a JWT Token: encoding
+ * @apiDescription Encode user data into a JWT token.
  *
- * @apiHeader {String} Content-Type: application/json
+ * @apiHeader {String} Content-Type application/json
+ * @apiParam {String} user The username of the user.
+ * @apiParam {Object} data The data to be encoded in the token.
+ * @apiParam (data) {String} role The role of the user.
+ * @apiParam (data) {Number} access_level The access level of the user.
  *
- * @apiBody {String} user, data
+ * @apiSuccess {String} token The generated JWT token.
+ * @apiSuccess {String} context Some extra data.
  *
- * @apiSuccessExample Example Success Response:
- * HTTP/1.1 200 OK
- * {token: encoded token, context: "some extra data"}
+ * @apiError (400) BadRequest Missing user or data.
+ * @apiError (500) InternalServerError Server error.
  */
 encodingRouter.post("/encode/", async (req: Request, res: Response, next: NextFunction) => {
     console.log("Encoding request received");
@@ -49,14 +59,17 @@ encodingRouter.post("/encode/", async (req: Request, res: Response, next: NextFu
     }
 
     try {
+        const uniqueId = crypto.randomBytes(16).toString("hex");
+        const timestamp = new Date().toISOString();
+
         const header = JSON.stringify({ alg: "HS256", typ: "JWT" });
-        const payload = JSON.stringify({ user, data });
+        const payload = JSON.stringify({ user, data, uniqueId, timestamp });
         const encodedHeader = base64UrlEncode(Buffer.from(header));
         const encodedPayload = base64UrlEncode(Buffer.from(payload));
-        const signature = createSignature(encodedHeader as string, encodedPayload as string, SECRET_KEY as string);
+        const signature = createSignature(encodedHeader, encodedPayload, SECRET_KEY);
 
-        const token = `${encodedHeader as string}.${encodedPayload as string}.${signature as string}`;
-        const context = "some extra data";
+        const token = `${encodedHeader}.${encodedPayload}.${signature}`;
+        const context = "some extra data"; // doc said this
         return res.status(StatusCode.SuccessOK).send({ token, context: context || {} });
     } catch (err) {
         return next(err);
@@ -64,19 +77,23 @@ encodingRouter.post("/encode/", async (req: Request, res: Response, next: NextFu
 });
 
 /**
- * @api {post} /hackwebtoken/decode/ POST /hackwebtoken/decode/
+ * @api {post} /hackwebtoken/decode/ Decode JWT Token
+ * @apiName DecodeJWT
  * @apiGroup HackWebToken
- * @apiDescription Implement a JWT Token: decoding
+ * @apiDescription Decode a JWT token and retrieve the encoded user data.
  *
- * @apiHeader {String} Content-Type: application/json
+ * @apiHeader {String} Content-Type application/json
+ * @apiParam {String} token The JWT token to decode.
  *
- * @apiBody {String} token, context
+ * @apiSuccess {String} user The username of the user.
+ * @apiSuccess {Object} data The decoded data from the token.
+ * @apiSuccess (data) {String} role The role of the user.
+ * @apiSuccess (data) {Number} access_level The access level of the user.
  *
- * @apiSuccessExample Example Success Response:
- * HTTP/1.1 200 OK
- * {user: decoded user, data: {role: role, access_level: number}}
+ * @apiError (400) BadRequest Missing token.
+ * @apiError (401) Unauthorized Invalid token.
+ * @apiError (500) InternalServerError Server error.
  */
-
 encodingRouter.post("/decode/", async (req: Request, res: Response) => {
     console.log("Decoding request received");
     const { token } = req.body;
@@ -87,13 +104,13 @@ encodingRouter.post("/decode/", async (req: Request, res: Response) => {
 
     try {
         const [encodedHeader, encodedPayload, receivedSignature] = token.split(".");
-        const expectedSignature = createSignature(encodedHeader as string, encodedPayload as string, SECRET_KEY as string);
+        const expectedSignature = createSignature(encodedHeader, encodedPayload, SECRET_KEY);
 
         if (receivedSignature !== expectedSignature) {
             return res.status(StatusCode.ClientErrorUnauthorized).json({ error: "Invalid token" });
         }
 
-        const payload = JSON.parse(base64UrlDecode(encodedPayload as string).toString());
+        const payload = JSON.parse(base64UrlDecode(encodedPayload).toString());
         return res.status(StatusCode.SuccessOK).send({ user: payload.user, data: payload.data });
     } catch (err) {
         return res.status(StatusCode.ClientErrorUnauthorized).json({ error: "Invalid token" });
