@@ -37,12 +37,10 @@ const createSignature = (header: string, payload: string, secret: string): strin
  *
  * @apiHeader {String} Content-Type application/json
  * @apiBody {String} user The username of the user.
- * @apiBody {Object} data The data to be encoded in the token.
- * @apiBody (data) {String} role The role of the user.
- * @apiBody (data) {Number} access_level The access level of the user.
+ * @apiBody {Json} data The data to be encoded in the token.
  *
  * @apiSuccess {String} token The generated JWT token.
- * @apiSuccess {String} context Some extra data.
+ * @apiSuccess {Json} context context to decode JWT token.
  *
  * @apiError (400) BadRequest Missing user or data.
  * @apiError (500) InternalServerError Server error.
@@ -85,11 +83,10 @@ encodingRouter.post("/encode/", async (req: Request, res: Response, next: NextFu
  *
  * @apiHeader {String} Content-Type application/json
  * @apiBody {String} token The JWT token to decode.
+ * @apiBody {Json} context context to decode JWT token.
  *
  * @apiSuccess {String} user The username of the user.
- * @apiSuccess {Object} data The decoded data from the token.
- * @apiSuccess (data) {String} role The role of the user.
- * @apiSuccess (data) {Number} access_level The access level of the user.
+ * @apiSuccess {Json} data The decoded data from the token.
  *
  * @apiError (400) BadRequest Missing token.
  * @apiError (401) Unauthorized Invalid token.
